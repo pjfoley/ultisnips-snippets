@@ -1,0 +1,410 @@
+# Snippets for Puppet
+
+global !p
+import vim
+import os.path
+import subprocess
+
+def get_module_namespace_and_basename():
+    """This function will try to guess the current class or define name you are
+    trying to create. Note that for this to work you should be using the module
+    structure as per the style guide. Examples inputs and it's output
+    * /home/nikolavp/puppet/modules/collectd/manifests/init.pp -> collectd
+    * /home/nikolavp/puppet/modules/collectd/manfistes/mysql.pp -> collectd::mysql
+    """
+    current_file_path_without_ext = vim.eval('expand("%:p:r")') or ""
+    if not current_file_path_without_ext:
+        return "name"
+    parts = os.path.split(current_file_path_without_ext)
+    namespace = ''
+    while parts[0] and parts[0] != '/':
+        # Skip the init.pp files because they don't create a deeper namespace
+        # and are special. Note this might break things like
+        # modules/collectd/init/test.pp. But I am not even sure if puppet will
+        # work for those.
+        if parts[1] == 'init':
+            parts = os.path.split(parts[0])
+            continue
+        if parts[1] == 'manifests':
+          if not namespace:
+            return os.path.split(parts[0])[1]
+          else:
+            return os.path.split(parts[0])[1] + '::' + namespace.rstrip(':')
+        else:
+            namespace = parts[1] + '::' + namespace
+        parts = os.path.split(parts[0])
+    # couldn't guess the namespace. The user is editing a raw file in no module like the site.pp file
+    return "name"
+
+def get_module_basename():
+    """This function will try to guess the base class or define name you are
+    trying to create. Note that for this to work you should be using the module
+    structure as per the style guide. Examples inputs and it's output
+    * /home/nikolavp/puppet/modules/collectd/manifests/init.pp -> collectd
+    * /home/nikolavp/puppet/modules/collectd/manfistes/mysql.pp -> collectd::mysql
+    """
+    current_file_path_without_ext = vim.eval('expand("%:p:r")') or ""
+    if not current_file_path_without_ext:
+        return "module_name"
+    parts = os.path.split(current_file_path_without_ext)
+    namespace = ''
+    while parts[0] and parts[0] != '/':
+        # Skip the init.pp files because they don't create a deeper namespace
+        # and are special. Note this might break things like
+        # modules/collectd/init/test.pp. But I am not even sure if puppet will
+        # work for those.
+        if parts[1] == 'init':
+            parts = os.path.split(parts[0])
+            continue
+        if parts[1] == 'manifests':
+          if not namespace:
+            return os.path.split(parts[0])[1]
+        parts = os.path.split(parts[0])
+    # couldn't guess the namespace. The user is editing a raw file in no module like the site.pp file
+    return "module_name"
+
+def get_facter_value( facter_var ):
+    l_fqdn = subprocess.check_output(["facter", facter_var]).rstrip()
+    if not l_fqdn:
+      return "folder path"
+    else:
+      return l_fqdn
+endglobal
+
+##########################################################################
+#  Puppet Language Constructs                                            #
+#    See http://docs.puppetlabs.com/puppet/3/reference/lang_summary.html #
+#                                                                        #
+##########################################################################
+
+snippet class "Basic Class declaration" b
+class ${1:`!p snip.rv = get_module_namespace_and_basename()`} {
+  ${0:# body}
+}
+endsnippet
+
+snippet class "Class with parameters declaration" b
+class ${1:`!p snip.rv = get_module_namespace_and_basename()`} (${2:parameters}) {
+  ${0:# body}
+}
+endsnippet
+
+snippet class "Basic Class Resource-like Declaration" b
+class {'${1:class name}':}
+endsnippet
+
+snippet class "Class Resource-like Declaration with Parameters" b
+class {'${1:class name}':
+  ${2:key}  => ${3:value},
+}
+endsnippet
+
+snippet define "Basic Define Definition" b
+define ${1:`!p snip.rv = get_module_namespace_and_basename()`} {
+  ${0:# body}
+}
+endsnippet
+
+snippet define "Parameters Define Definition" b
+define ${1:`!p snip.rv = get_module_namespace_and_basename()`} (${2:parameters}) {
+  ${0:# body}
+}
+endsnippet
+
+snippet define "Declare a Define Instance" b
+${1:Define_Name} { '${2:name}' :
+  ${3:key} => '${4:value}',
+}
+endsnippet
+
+snippet node "Node Definition" b
+node '${1:name or regex}' {
+  ${0:# body}
+}
+endsnippet
+
+snippet node "Node Definition with Inherits" b
+node '${1:name or regex}' inherits '${2:values}' {
+  ${0:# body}
+}
+endsnippet
+
+snippet node "Node Definition with facter FQDN fact" b
+node '${1:`!p snip.rv = get_facter_value( "fqdn" )`}' {
+  ${0:# body}
+}
+endsnippet
+
+snippet node "Node Definition with Inherits with facter FQDN fact" b
+node '${1:`!p snip.rv = get_facter_value( "fqdn" )`}' inherits '${2:values}' {
+  ${0:# body}
+}
+endsnippet
+
+
+#### Logic/conditional Fragments
+
+snippet case "Case Statement" !b
+case $${1:variable} {
+  ${2:match} : { ${3:statements} }
+  default : { ${4:default statements} }
+}
+endsnippet
+
+snippet if "If Logic Fragment" b
+if $${1:variable} {
+  ${2:True Condition}
+}
+endsnippet
+
+snippet if "If and Else Logic Fragment" b
+if $${1:variable} {
+  ${2:True Condition}
+}
+else {
+  ${3:False Condition}
+}
+endsnippet
+
+snippet else "Else Logic Fragment" b
+else {
+  ${1:False Condition}
+}
+endsnippet
+
+snippet ? "Selector Statement" b
+$${1:returned value} = ${2:variable} ? {
+  '${3:match}' => '${4:value}',
+  default => '${5:value}',
+}
+endsnippet
+
+snippet unless "Unless Statement" b
+unless $${1:variable} ${2:predicate} '${3:value}' {
+  ${4:# body}
+}
+endsnippet
+
+#### Language Fragments
+
+snippet [ "Square Bracket" !b
+[ ${1:inside} ]${2}
+endsnippet
+
+snippet > "Key Value Pair - :" b
+${1:key} : ${2:value},${3}
+endsnippet
+
+snippet > "Key Value Pair - =>" b
+${1:key} => ${2:value},${3}
+endsnippet
+
+snippet > "Key Value Pair - =" b
+$${1:Variable} => ${2:value},${3}
+endsnippet
+
+snippet location "Puppet File Server" !b
+"puppet://puppet/${1:`!p snip.rv = get_module_basename()`}/${2:file name}"
+endsnippet
+
+
+#################################################################
+#  Puppet Types                                                 #
+#    See http://docs.puppetlabs.com/references/latest/type.html #
+#                                                               #
+#################################################################
+
+snippet augeas "Augeas Type Defintion" !b
+augeas{"${1:name}" :
+  context  => "${2:context}",
+  changes  => "${3:changes}",
+  onlyif   => "${4:match}",${5}
+}
+endsnippet
+
+snippet cron "Cron Type Definition" !b
+cron{"${1:name}":
+  command    => "${2:command}":
+  user       => "${3:root}",
+  ${4:time}  => "${5:value}",${6}
+}
+endsnippet
+
+snippet exec "Exec resource type" b
+exec { '${1:command}':
+  command     => "${2:$1}",
+  user        => "${3:root}",
+  refreshonly => true,${4}
+}
+endsnippet
+
+snippet file "File resource type" b
+file { '${1:name}':
+  source => "puppet://puppet/${2:`!p snip.rv = get_module_basename()`}/${3:file name}",
+  mode   => ${4:mode},${5}
+}
+endsnippet
+
+snippet File "Defaults for file" b
+File {
+  owner  => ${1:username},
+  group  => ${2:groupname},${3}
+}
+endsnippet
+
+snippet group "Group resource type" b
+group { '${1:groupname}':
+  ensure => ${2:present},
+  gid    => ${3:gid},${4}
+}
+endsnippet
+
+snippet host "Host resource type" !b
+host {"${1:hostname}":
+  ${2:key} => ${3:value},${4}
+}
+endsnippet
+
+snippet mount "Mount resource type" b
+mount { '${1:path}':
+  device  => '${2:/dev}',
+  fstype  => '${3:filesystem}',
+  ensure  => mounted,
+  options => 'rw,errors=remount-ro',${4}
+}
+endsnippet
+
+snippet package "Package resource type" b
+package { '${1:name}':
+  ensure => ${2:installed},${3}
+}
+endsnippet
+
+snippet service "Service resource type" b
+service { '${1:name}':
+  hasstatus => ${2:true},
+  enable    => ${3:true},
+  ensure    => ${4:running},${5}
+}
+endsnippet
+
+snippet user "user resource type" b
+user { '${1:username}':
+  ensure     => ${2:present},
+  uid        => ${3:uid},
+  gid        => ${4:gid},
+  comment    => ${5:gecos},
+  home       => ${6:/home/$1},
+  managehome => false,
+  require    => Group['${7:group}'],${8}
+}
+endsnippet
+
+
+########################################################################
+#  Puppet Functions                                                    #
+#    See http://docs.puppetlabs.com/references/latest/function.html    #
+#                                                                      #
+########################################################################
+
+snippet alert "Alert Function" !b
+alert("${1:message}")${2}
+endsnippet
+
+snippet crit "Crit Function" !b
+crit("${1:message}")${2}
+endsnippet
+
+snippet debug "Debug Function" !b
+debug("${1:message}")${2}
+endsnippet
+
+snippet defined "Defined Function" !b
+defined(${1:Resource}["${2:name}"])${3}
+endsnippet
+
+snippet emerg "Emerg Function" !b
+emerg("${1:message}")${2}
+endsnippet
+
+snippet extlookup "Simple Extlookup" b
+${1:Variable} = extlookup("${2:Lookup}")${3}
+endsnippet
+
+snippet extlookup "Extlookup with defaults" b
+${1:Variable} = extlookup("${2:Lookup}", ${3:Default})${4}
+endsnippet
+
+snippet extlookup "Extlookup with defaults and custom data file" b
+${1:Variable} = extlookup("${2:Lookup}", ${3:Default}, ${4:Data Source})${5}
+endsnippet
+
+snippet fail "Fail Function" !b
+fail("${1:message}")${2}
+endsnippet
+
+snippet hiera "Hiera Function" b
+${1:Variable} = hiera("${2:Lookup}")${3}
+endsnippet
+
+snippet hiera "Hiera with defaults" b
+${1:Variable} = hiera("${2:Lookup}", ${3:Default})${4}
+endsnippet
+
+snippet hiera "Hiera with defaults and override" b
+${1:Variable} = hiera("${2:Lookup}", ${3:Default}, ${4:Override})${5}
+endsnippet
+
+snippet hiera_hash "Hiera Hash Function" b
+${1:Variable} = hiera_hash("${2:Lookup}")${3}
+endsnippet
+
+snippet hiera_hash "Hiera Hash with defaults" b
+${1:Variable} = hiera_hash("${2:Lookup}", ${3:Default})${4}
+endsnippet
+
+snippet hiera_hash "Hiera Hash with defaults and override" b
+${1:Variable} = hiera_hash("${2:Lookup}", ${3:Default}, ${4:Override})${5}
+endsnippet
+
+snippet hiera_include "Hiera Include Function" b
+hiera_include("${1:Lookup}")${2}
+endsnippet
+
+snippet include "Include Function" !b
+include ${1:classname}${2}
+endsnippet
+
+snippet info "Info Function" !b
+info("${1:message}")${2}
+endsnippet
+
+snippet inline_template "Inline Template Function" !b
+inline_template("<%= ${1:template} %>")${2}
+endsnippet
+
+snippet notice "Notice Function" !b
+notice("${1:message}")${2}
+endsnippet
+
+snippet realize "Realize Function" !b
+realize(${1:Resource}["${2:name}"])${3}
+endsnippet
+
+snippet regsubst "Regsubst Function" !b
+regsubst($${1:Target}, '${2:regexp}', '${3}')
+endsnippet
+
+snippet split "Split Function" !b
+${1:Variable} = split($${1:Target}, '${2:regexp}')${3}
+endsnippet
+
+snippet versioncmp "Version Compare Function" !b
+${1:Variable} = versioncmp('${1:version}', '${2:version}')${3}
+endsnippet
+
+snippet warning "Warning Function" !b
+warning("${1:message}")${2}
+endsnippet
+
+# vim:ft=snippets:
