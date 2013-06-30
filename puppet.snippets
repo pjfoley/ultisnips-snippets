@@ -29,7 +29,7 @@ def get_module_namespace_and_basename( basename_only = False ):
         if tail == 'manifests':
           (head, tail) = lf_split(head)
           return tail if basename_only else tail + ('::' + namespace).rstrip(':')
-       else:
+        else:
           namespace = tail + '::' + namespace
         (head, tail) = lf_split(head)
     # couldn't guess the namespace. The user is editing a raw file in no module like the site.pp file
