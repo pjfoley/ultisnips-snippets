@@ -2,73 +2,42 @@
 
 global !p
 import vim
-import os.path
+from os.path import split as lf_split
 import subprocess
 
-def get_module_namespace_and_basename():
+def get_module_namespace_and_basename( basename_only = False ):
     """This function will try to guess the current class or define name you are
     trying to create. Note that for this to work you should be using the module
     structure as per the style guide. Examples inputs and it's output
     * /home/nikolavp/puppet/modules/collectd/manifests/init.pp -> collectd
     * /home/nikolavp/puppet/modules/collectd/manfistes/mysql.pp -> collectd::mysql
     """
+    default_return = "module::name"
+    head = ''
+    tail = ''
+    first_time = True
     current_file_path_without_ext = vim.eval('expand("%:p:r")') or ""
     if not current_file_path_without_ext:
-        return "name"
-    parts = os.path.split(current_file_path_without_ext)
+        return default_return
+    (head, tail) = lf_split(current_file_path_without_ext)
     namespace = ''
-    while parts[0] and parts[0] != '/':
-        # Skip the init.pp files because they don't create a deeper namespace
-        # and are special. Note this might break things like
-        # modules/collectd/init/test.pp. But I am not even sure if puppet will
-        # work for those.
-        if parts[1] == 'init':
-            parts = os.path.split(parts[0])
-            continue
-        if parts[1] == 'manifests':
-          if not namespace:
-            return os.path.split(parts[0])[1]
-          else:
-            return os.path.split(parts[0])[1] + '::' + namespace.rstrip(':')
-        else:
-            namespace = parts[1] + '::' + namespace
-        parts = os.path.split(parts[0])
+    while head and head != '/':
+        if tail == 'init' and first_time and not namespace:
+          first_time = False
+          (head, tail) = lf_split(head)
+          continue
+        if tail == 'manifests':
+          (head, tail) = lf_split(head)
+          return tail if basename_only else tail + ('::' + namespace).rstrip(':')
+       else:
+          namespace = tail + '::' + namespace
+        (head, tail) = lf_split(head)
     # couldn't guess the namespace. The user is editing a raw file in no module like the site.pp file
-    return "name"
-
-def get_module_basename():
-    """This function will try to guess the base class or define name you are
-    trying to create. Note that for this to work you should be using the module
-    structure as per the style guide. Examples inputs and it's output
-    * /home/nikolavp/puppet/modules/collectd/manifests/init.pp -> collectd
-    * /home/nikolavp/puppet/modules/collectd/manfistes/mysql.pp -> collectd::mysql
-    """
-    current_file_path_without_ext = vim.eval('expand("%:p:r")') or ""
-    if not current_file_path_without_ext:
-        return "module_name"
-    parts = os.path.split(current_file_path_without_ext)
-    namespace = ''
-    while parts[0] and parts[0] != '/':
-        # Skip the init.pp files because they don't create a deeper namespace
-        # and are special. Note this might break things like
-        # modules/collectd/init/test.pp. But I am not even sure if puppet will
-        # work for those.
-        if parts[1] == 'init':
-            parts = os.path.split(parts[0])
-            continue
-        if parts[1] == 'manifests':
-          if not namespace:
-            return os.path.split(parts[0])[1]
-        parts = os.path.split(parts[0])
-    # couldn't guess the namespace. The user is editing a raw file in no module like the site.pp file
-    return "module_name"
+    return default_return
 
 def get_facter_value( facter_var ):
     l_fqdn = subprocess.check_output(["facter", facter_var]).rstrip()
-    if not l_fqdn:
-      return "folder path"
-    else:
-      return l_fqdn
+    return l_fqdn if l_fqdn else "folder path"
 endglobal
 
 ##########################################################################
@@ -203,8 +172,8 @@ snippet > "Key Value Pair - =" b
 $${1:Variable} => ${2:value},${3}
 endsnippet
 
-snippet location "Puppet File Server" !b
-"puppet://puppet/${1:`!p snip.rv = get_module_basename()`}/${2:file name}"
+snippet loc "Puppet File Server" !b
+"puppet://puppet/${1:`!p snip.rv = get_module_namespace_and_basename(True)`}/${2:file name}"
 endsnippet
 
 
